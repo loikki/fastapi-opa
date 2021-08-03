@@ -21,3 +21,19 @@ class AuthInterface(ABC):
         identity broker beforehand.
         """
         pass
+
+    @abstractmethod
+    def logout(
+            self, request: Request
+    ) -> RedirectResponse:
+        """The method logs out from identity provider, clears local session and redirects to application logout page"""
+
+        pass
+
+    @abstractmethod
+    def verify_user(
+            self, request: Request
+    ) -> Union[RedirectResponse, bool]:
+        """The method verifies JWT provided by the user, and returns either response or verification status"""
+
+        pass

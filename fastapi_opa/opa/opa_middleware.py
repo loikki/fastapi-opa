@@ -7,10 +7,12 @@ import requests
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
+from starlette.responses import Response
 from starlette.types import ASGIApp
 from starlette.types import Receive
 from starlette.types import Scope
 from starlette.types import Send
+from http import cookies
 
 from fastapi_opa.auth.exceptions import AuthenticationException
 from fastapi_opa.opa.opa_config import OPAConfig
@@ -27,6 +29,15 @@ class OPAMiddleware:
         self, scope: Scope, receive: Receive, send: Send
     ) -> None:
         request = Request(scope, receive, send)
+        if (request.method == "OPTIONS"):
+            return await self.app(scope, receive, send)
+
+        if (request.url.path == "/logout") and request.query_params.get("url_redirect") != None:
+            response = self.config.authentication.logout(request)
+            return await response.__call__(
+                scope, receive, send
+            )
+
         # authenticate user or get redirect to identity provider
         try:
             user_info_or_auth_redirect = (
@@ -42,6 +53,13 @@ class OPAMiddleware:
             return await user_info_or_auth_redirect.__call__(
                 scope, receive, send
             )
+
+        redirect_or_status = self.config.authentication.verify_user(request)
+        if isinstance(redirect_or_status, RedirectResponse):
+            return await redirect_or_status.__call__(
+                scope, receive, send
+            )
+
 
         # Check OPA decision for info provided in user_info
         is_authorized = False
@@ -77,6 +95,6 @@ class OPAMiddleware:
         scope: Scope, receive: Receive, send: Send
     ) -> None:
         response = JSONResponse(
-            status_code=401, content={"message": "Unauthorized"}
+            status_code=401, content={"message": "Sorry not sorry"}
         )
         return await response(scope, receive, send)
