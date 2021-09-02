@@ -142,7 +142,7 @@ def construct_jwt(
 ):
     iat = datetime.datetime.utcnow()
     exp = datetime.datetime.utcnow() + datetime.timedelta(
-        days=1000000
+        days=100000
     )  # This or patch jwt.decode
     if not msg:
         msg = {

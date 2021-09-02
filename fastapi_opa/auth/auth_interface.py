@@ -33,7 +33,15 @@ class AuthInterface(ABC):
     @abstractmethod
     def verify_user(
             self, request: Request
-    ) -> Union[RedirectResponse, bool]:
+    ) -> Union[RedirectResponse, None]:
         """The method verifies JWT provided by the user, and returns either response or verification status"""
+
+        pass
+
+    @abstractmethod
+    def get_local_session(
+            self, request: Request
+    ) -> Union[dict, None]:
+        """This method returns local session if it exists"""
 
         pass

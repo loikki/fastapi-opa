@@ -12,16 +12,13 @@ from urllib.parse import urlunparse
 
 import jwt
 import requests
-from jwt.exceptions import DecodeError
+from jwt.exceptions import DecodeError, InvalidSignatureError, ExpiredSignatureError
 from jwt.exceptions import InvalidTokenError
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
-from starlette.responses import Response
 
 from fastapi_opa.auth.auth_interface import AuthInterface
 from fastapi_opa.auth.exceptions import OIDCException
-
-from Crypto.Cipher import AES
 
 import hashlib
 import math
@@ -38,6 +35,7 @@ class OIDCConfig:
     scope: str = field(default="openid email profile")
     app_uri_login: str = field(default="")
     app_uri_logout: str = field(default="")
+    verify_local_session: bool = field(default=False)
 
     # provide either well_known or all the other values
     well_known_endpoint: str = field(default="")
@@ -69,6 +67,8 @@ class OIDCAuthentication(AuthInterface):
                 raise OIDCException("Userinfo endpoint not provided")
         else:
             raise OIDCException("Endpoints not provided")
+
+    sessions = {}
 
     def set_from_well_known(self):
         endpoints = self.to_dict_or_raise(
@@ -121,25 +121,24 @@ class OIDCAuthentication(AuthInterface):
         return user_info
 
     def login(
-            self, request: Request, id_token: dict
+        self, request: Request, id_token: dict
     ) -> RedirectResponse:
-        redirect = self.config.app_uri_login
-        if redirect == None:
+        if self.config.app_uri_login is None:
             raise OIDCException("Login callback is not provided")
         response = RedirectResponse(url=self.config.app_uri_login, status_code=307)
 
-        #create jwt token with basic user info
-        user = {"userName" : id_token.get("user_name"),
-                "email" : id_token.get("email")}
+        # create jwt token with basic user info
+        user = {"userName": id_token.get("user_name"),
+                "email": id_token.get("email")}
 
-        #todo pass expiration same as cookie
         user_token = jwt.encode(payload=user,
-                                key= "blablabla")
+                                key="blablabla")
 
         if len(user_token) > 4096:  # Ref. RFC 6265
             logger.warning(
                 "Cookie exceeds 4096 bytes, may be ignored by browser.")
 
+        self.sessions[user_token] = id_token
         response.set_cookie(key='oidc-session',
                             value=user_token,
                             secure=True,
@@ -149,28 +148,28 @@ class OIDCAuthentication(AuthInterface):
         logger.debug("Login requested, redirecting to: " + self.config.app_uri_login)
         return response
 
-
     def logout(
-            self, request: Request
+        self, request: Request
     ):
         logger.debug("Logging out, redirect url:" + self.config.app_uri_logout)
-        # response = RedirectResponse(
-        #    url="https://sso-corproot-v2.scapp-services.swisscom.com/logout.do?id_token_hint=" + request.session.get('id_token') +"&post_logout_redirect_uri=http://localhost:4200/logout", status_code=303)
         response = RedirectResponse(
             url=self.config.app_uri_logout)
-        logger.warning("Deleting cookie: " + request.cookies.get('oidc-session'))
+        logger.warning(self.sessions)
+        del self.sessions[request.cookies.get('oidc-session')]
         response.delete_cookie('oidc-session')
-        request.session.clear()
         return response
 
     def verify_user(
-            self, request: Request
-    ) -> Union[RedirectResponse, bool]:
+        self, request: Request
+    ) -> Union[RedirectResponse, None]:
         token = request.cookies.get('oidc-session')
-        if token != None:
+
+        if not self.config.verify_local_session:
+            return None
+        if token is not None:
             try:
-                veriefied_user = jwt.decode(token,
-                           key="blablabla",
+                jwt.decode(token,
+                           key=self.config.client_secret,
                            algorithms=['HS256', ]
                            )
             except InvalidSignatureError:
@@ -185,9 +184,15 @@ class OIDCAuthentication(AuthInterface):
                 logger.error("An error occurred while decoding the user_token")
                 raise OIDCException(
                     "An error occurred while decoding the user_token")
-            return true
+            return None
         else:
             return RedirectResponse(url=self.config.app_uri_login)
+
+    def get_local_session(
+        self, request: Request
+    ) -> Union[dict, None]:
+        key = request.cookies.get('oidc-session')
+        return self.sessions.get(key)
 
     def get_auth_redirect_uri(self, callback_uri):
         return "{}?response_type=code&scope={}&client_id={}&redirect_uri={}".format(  # noqa

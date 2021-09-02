@@ -7,12 +7,10 @@ import requests
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
-from starlette.responses import Response
 from starlette.types import ASGIApp
 from starlette.types import Receive
 from starlette.types import Scope
 from starlette.types import Send
-from http import cookies
 
 from fastapi_opa.auth.exceptions import AuthenticationException
 from fastapi_opa.opa.opa_config import OPAConfig
@@ -29,37 +27,43 @@ class OPAMiddleware:
         self, scope: Scope, receive: Receive, send: Send
     ) -> None:
         request = Request(scope, receive, send)
-        if (request.method == "OPTIONS"):
+        if request.method == "OPTIONS":
             return await self.app(scope, receive, send)
 
-        if (request.url.path == "/logout") and request.query_params.get("url_redirect") != None:
+        if request.url.path == "/logout":
             response = self.config.authentication.logout(request)
             return await response.__call__(
                 scope, receive, send
             )
 
-        # authenticate user or get redirect to identity provider
-        try:
-            user_info_or_auth_redirect = (
-                self.config.authentication.authenticate(request)
-            )
-            if asyncio.iscoroutine(user_info_or_auth_redirect):
-                user_info_or_auth_redirect = await user_info_or_auth_redirect
-        except AuthenticationException:
-            logger.error("AuthenticationException raised on login")
-            return await self.get_unauthorized_response(scope, receive, send)
-        # Some authentication flows require a prior redirect to id provider
-        if isinstance(user_info_or_auth_redirect, RedirectResponse):
-            return await user_info_or_auth_redirect.__call__(
-                scope, receive, send
-            )
+        # if user was previosuly authenticated, and local session available, then skip authentication
+        local_session = self.config.authentication.get_local_session(request)
+        if local_session is None:
+
+            # authenticate user or get redirect to identity provider
+            try:
+                user_info_or_auth_redirect = (
+                    self.config.authentication.authenticate(request)
+                )
+                if asyncio.iscoroutine(user_info_or_auth_redirect):
+                    user_info_or_auth_redirect = await user_info_or_auth_redirect
+            except AuthenticationException:
+                logger.error("AuthenticationException raised on login")
+                return await self.get_unauthorized_response(scope, receive, send)
+            # Some authentication flows require a prior redirect to id provider
+            if isinstance(user_info_or_auth_redirect, RedirectResponse):
+                return await user_info_or_auth_redirect.__call__(
+                    scope, receive, send
+                )
+
+        else:
+            user_info_or_auth_redirect = local_session
 
         redirect_or_status = self.config.authentication.verify_user(request)
         if isinstance(redirect_or_status, RedirectResponse):
             return await redirect_or_status.__call__(
                 scope, receive, send
             )
-
 
         # Check OPA decision for info provided in user_info
         is_authorized = False

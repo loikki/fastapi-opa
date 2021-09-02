@@ -58,7 +58,7 @@ async def test_not_allowing_opa_flow(client):
 
     assert expected_url == url
     assert expected_payload == payload
-    assert {"message": "Unauthorized"} == response.json()
+    assert {"message": "Sorry not sorry"} == response.json()
 
 
 @pytest.mark.asyncio
