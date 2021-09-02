@@ -23,25 +23,21 @@ class AuthInterface(ABC):
         pass
 
     @abstractmethod
-    def logout(
-            self, request: Request
-    ) -> RedirectResponse:
-        """The method logs out from identity provider, clears local session and redirects to application logout page"""
+    def logout(self, request: Request) -> RedirectResponse:
+        """The method logs out from identity provider, clears local session
+        and redirects to application logout page"""
 
         pass
 
     @abstractmethod
-    def verify_user(
-            self, request: Request
-    ) -> Union[RedirectResponse, None]:
-        """The method verifies JWT provided by the user, and returns either response or verification status"""
+    def verify_user(self, request: Request) -> Union[RedirectResponse, None]:
+        """The method verifies JWT provided by the user, and returns either
+        response or verification status"""
 
         pass
 
     @abstractmethod
-    def get_local_session(
-            self, request: Request
-    ) -> Union[dict, None]:
+    def get_local_session(self, request: Request) -> Union[dict, None]:
         """This method returns local session if it exists"""
 
         pass

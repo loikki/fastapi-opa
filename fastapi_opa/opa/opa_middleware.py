@@ -32,11 +32,10 @@ class OPAMiddleware:
 
         if request.url.path == "/logout":
             response = self.config.authentication.logout(request)
-            return await response.__call__(
-                scope, receive, send
-            )
+            return await response.__call__(scope, receive, send)
 
-        # if user was previosuly authenticated, and local session available, then skip authentication
+        # if user was previously authenticated, and local session available,
+        # then skip authentication
         local_session = self.config.authentication.get_local_session(request)
         if local_session is None:
 
@@ -46,10 +45,14 @@ class OPAMiddleware:
                     self.config.authentication.authenticate(request)
                 )
                 if asyncio.iscoroutine(user_info_or_auth_redirect):
-                    user_info_or_auth_redirect = await user_info_or_auth_redirect
+                    user_info_or_auth_redirect = (
+                        await user_info_or_auth_redirect
+                    )
             except AuthenticationException:
                 logger.error("AuthenticationException raised on login")
-                return await self.get_unauthorized_response(scope, receive, send)
+                return await self.get_unauthorized_response(
+                    scope, receive, send
+                )
             # Some authentication flows require a prior redirect to id provider
             if isinstance(user_info_or_auth_redirect, RedirectResponse):
                 return await user_info_or_auth_redirect.__call__(
@@ -61,9 +64,7 @@ class OPAMiddleware:
 
         redirect_or_status = self.config.authentication.verify_user(request)
         if isinstance(redirect_or_status, RedirectResponse):
-            return await redirect_or_status.__call__(
-                scope, receive, send
-            )
+            return await redirect_or_status.__call__(scope, receive, send)
 
         # Check OPA decision for info provided in user_info
         is_authorized = False

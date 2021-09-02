@@ -84,17 +84,11 @@ class SAMLAuthentication(AuthInterface):
             # "lowercase_urlencoding": True
         }
 
-    def logout(
-            self, request: Request
-    ) -> RedirectResponse:
+    def logout(self, request: Request) -> RedirectResponse:
         pass
 
-    def verify_user(
-            self, request: Request
-    ) -> Union[RedirectResponse, None]:
+    def verify_user(self, request: Request) -> Union[RedirectResponse, None]:
         pass
 
-    def get_local_session(
-            self, request: Request
-    ) -> Union[dict, None]:
+    def get_local_session(self, request: Request) -> Union[dict, None]:
         pass
