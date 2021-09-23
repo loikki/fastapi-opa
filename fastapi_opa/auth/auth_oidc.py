@@ -40,6 +40,9 @@ class OIDCConfig:
     userinfo_endpoint: str = field(default="")
     get_user_info: bool = field(default=False)
 
+    app_uri_login: str = field(default="")
+    app_uri_logout: str = field(default="")
+
 
 class OIDCAuthentication(AuthInterface):
     def __init__(self, config: OIDCConfig) -> None:
@@ -86,6 +89,13 @@ class OIDCAuthentication(AuthInterface):
                 "",
             ]
         )
+
+        if request.url.path == "/logout":
+            response = RedirectResponse(url=self.config.app_uri_logout)
+            response.delete_cookie('oidc-session')
+            request.session.clear()
+            return response
+
         code = request.query_params.get("code")
 
         # redirect to id provider if code query-value is not present
@@ -102,6 +112,11 @@ class OIDCAuthentication(AuthInterface):
             logging.warning("Error getting unverified header in jwt.")
             raise OIDCException
         validated_token = self.obtain_validated_token(alg, id_token)
+
+        request.session['oidc-session'] = json.dumps(validated_token)
+        if request.url.path == "/login" and self.config.app_uri_login is not None:
+            return RedirectResponse(url=self.config.app_uri_login)
+
         if not self.config.get_user_info:
             return validated_token
         user_info = self.get_user_info(auth_token.get("access_token"))

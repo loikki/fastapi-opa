@@ -54,6 +54,7 @@ class OPAMiddleware:
                 scope, receive, send
             )
 
+
         # Check OPA decision for info provided in user_info
         is_authorized = False
         # Enrich user_info if injectables are provided
